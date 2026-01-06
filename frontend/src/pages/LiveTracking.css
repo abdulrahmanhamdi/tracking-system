@@ -1,0 +1,138 @@
+.tracking-container {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  gap: 2rem;
+  height: calc(100vh - 200px);
+}
+
+.vehicle-selector-panel {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  height: fit-content;
+}
+
+.vehicle-selector-panel h3 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.vehicle-select {
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 1rem;
+}
+
+.tracking-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+}
+
+.location-panel {
+  background: white;
+  padding: 1.5rem;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.location-panel h3 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.location-details {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1rem;
+}
+
+.detail-row {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid #ecf0f1;
+}
+
+.detail-row .label {
+  font-weight: 600;
+  color: #7f8c8d;
+}
+
+.detail-row .value {
+  color: #2c3e50;
+}
+
+.map-placeholder {
+  background: #ecf0f1;
+  padding: 3rem;
+  border-radius: 8px;
+  text-align: center;
+  color: #7f8c8d;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+}
+
+.map-placeholder h3 {
+  margin-bottom: 1rem;
+  color: #2c3e50;
+}
+
+.map-coordinates {
+  margin-top: 1rem;
+  padding: 1rem;
+  background: white;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+.no-location,
+.no-selection {
+  background: white;
+  padding: 3rem;
+  border-radius: 8px;
+  text-align: center;
+  color: #7f8c8d;
+}
+
+.connection-status {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.status-indicator {
+  padding: 0.5rem 1rem;
+  border-radius: 4px;
+  font-weight: 600;
+}
+
+.status-indicator.connected {
+  color: #2ecc71;
+}
+
+.status-indicator.disconnected {
+  color: #e74c3c;
+}
+
+.status-indicator.paused {
+  color: #f39c12;
+}
+
+.status-indicator.error {
+  color: #e74c3c;
+}
+
+.error-message {
+  background-color: #fee;
+  color: #c33;
+  padding: 0.75rem;
+  border-radius: 4px;
+  margin-bottom: 1rem;
+}
