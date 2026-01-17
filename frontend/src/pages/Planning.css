@@ -1,3 +1,18 @@
+/* src/pages/Planning.css */
+
+.page-container {
+  padding: 2rem;
+  max-width: 1200px;
+  margin: 0 auto;
+}
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
+}
+
 .filters-section {
   display: flex;
   gap: 1rem;
@@ -27,6 +42,7 @@
   font-size: 1rem;
 }
 
+/* الأزرار العامة */
 .btn-primary {
   background-color: #3498db;
   color: white;
@@ -42,6 +58,22 @@
   background-color: #2980b9;
 }
 
+.btn-secondary {
+  background-color: #95a5a6;
+  color: white;
+  border: none;
+  padding: 0.75rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+.btn-secondary:hover {
+  background-color: #7f8c8d;
+}
+
+/* قائمة الخطط والبطاقات */
 .plans-list {
   display: flex;
   flex-direction: column;
@@ -53,34 +85,81 @@
   padding: 1.5rem;
   border-radius: 8px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  border-right: 5px solid #3498db; /* تمييز بصري جانبي */
 }
 
+/* تعديل رأس البطاقة ليشمل الأزرار والحالة */
 .plan-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
   margin-bottom: 1rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #f0f0f0;
+}
+
+.plan-header-right {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+/* تنسيق أزرار التعديل والحذف */
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.edit-btn, .delete-btn {
+  padding: 0.4rem 0.8rem;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  font-weight: 500;
+  transition: opacity 0.2s;
+}
+
+.edit-btn {
+  background-color: #f39c12;
+  color: white;
+}
+
+.delete-btn {
+  background-color: #e74c3c;
+  color: white;
+}
+
+.edit-btn:hover, .delete-btn:hover {
+  opacity: 0.8;
 }
 
 .plan-header h3 {
   color: #2c3e50;
   margin: 0;
+  font-size: 1.2rem;
 }
 
 .plan-details p {
-  margin: 0.5rem 0;
+  margin: 0.6rem 0;
   color: #555;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
 }
 
+/* نموذج الإنشاء والتعديل */
 .create-plan-form {
   background: white;
   padding: 2rem;
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
   margin-bottom: 2rem;
+  border-top: 4px solid #3498db;
 }
 
 .create-plan-form h3 {
+  margin-top: 0;
   margin-bottom: 1.5rem;
   color: #2c3e50;
 }
@@ -104,38 +183,45 @@
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 1rem;
+  box-sizing: border-box; /* لضمان عدم تجاوز الحقول للحاوية */
 }
 
 .create-plan-form textarea {
   resize: vertical;
 }
 
+/* شارات الحالة */
 .status-badge {
   display: inline-block;
   padding: 0.25rem 0.75rem;
   border-radius: 12px;
-  font-size: 0.85rem;
-  font-weight: 500;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
 }
 
 .status-badge.planned {
-  background-color: #3498db;
-  color: white;
+  background-color: #ebf5fb;
+  color: #3498db;
+  border: 1px solid #3498db;
 }
 
 .status-badge.active {
-  background-color: #2ecc71;
-  color: white;
+  background-color: #e8f8f5;
+  color: #2ecc71;
+  border: 1px solid #2ecc71;
 }
 
 .status-badge.completed {
-  background-color: #95a5a6;
-  color: white;
+  background-color: #f4f6f7;
+  color: #95a5a6;
+  border: 1px solid #95a5a6;
 }
 
 .status-badge.canceled {
-  background-color: #e74c3c;
-  color: white;
+  background-color: #fdedec;
+  color: #e74c3c;
+  border: 1px solid #e74c3c;
 }
 
 .error-message {
@@ -144,10 +230,12 @@
   padding: 0.75rem;
   border-radius: 4px;
   margin-bottom: 1rem;
+  border-left: 4px solid #c33;
 }
 
 .loading {
   text-align: center;
-  padding: 2rem;
+  padding: 3rem;
   color: #7f8c8d;
+  font-style: italic;
 }

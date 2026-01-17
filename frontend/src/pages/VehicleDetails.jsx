@@ -1,15 +1,22 @@
 import { useEffect, useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import api from '../api/axios'
+import { useAuth } from '../context/AuthContext' // استيراد نظام الصلاحيات
 import './VehicleDetails.css'
+
+// استيراد أيقونات أو تنسيقات إضافية إذا لزم الأمر
+import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet'
 
 function VehicleDetails() {
   const { id } = useParams()
+  const { user } = useAuth() // جلب بيانات المستخدم الحالي
   const [vehicle, setVehicle] = useState(null)
   const [lastLocation, setLastLocation] = useState(null)
   const [plans, setPlans] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+
+  const isAdmin = user?.role === 'ADMIN'
 
   useEffect(() => {
     fetchVehicleData()
@@ -19,11 +26,11 @@ function VehicleDetails() {
     try {
       setLoading(true)
       
-      // Fetch vehicle
+      // 1. جلب بيانات المركبة
       const vehicleRes = await api.get(`/vehicles/${id}/`)
       setVehicle(vehicleRes.data)
       
-      // Fetch last location
+      // 2. جلب آخر موقع معروف
       try {
         const locationsRes = await api.get(`/vehicles/${id}/locations/?limit=1`)
         const locations = locationsRes.data.results || locationsRes.data
@@ -34,7 +41,7 @@ function VehicleDetails() {
         console.error('Error fetching last location:', err)
       }
       
-      // Fetch plans for this vehicle
+      // 3. جلب الخطط المرتبطة بهذه المركبة
       try {
         const plansRes = await api.get('/plans/')
         const allPlans = plansRes.data.results || plansRes.data
@@ -62,71 +69,93 @@ function VehicleDetails() {
   return (
     <div className="page-container">
       <div className="page-header">
-        <h1>Vehicle Details</h1>
-        <Link to="/vehicles" className="btn-link">Back to Vehicles</Link>
+        <div className="header-title">
+          <h1>Vehicle Details</h1>
+          <span className={`status-badge ${vehicle.status.toLowerCase()}`}>
+            {vehicle.status}
+          </span>
+        </div>
+        <div className="header-actions">
+          <Link to="/vehicles" className="btn-secondary">Back to Vehicles</Link>
+          
+          {/* زر التتبع المباشر يظهر للجميع */}
+          <Link to={`/tracking?vehicle_id=${id}`} className="btn-primary">Live Track</Link>
+          
+          {/* زر التعديل يظهر فقط للمسؤول (Admin) */}
+          {isAdmin && (
+            <Link to={`/vehicles/${id}/edit`} className="btn-warning">Edit Vehicle</Link>
+          )}
+        </div>
       </div>
       
       {error && <div className="error-message">{error}</div>}
       
-      <div className="vehicle-details">
-        <div className="detail-section">
-          <h2>{vehicle.brand} {vehicle.model}</h2>
+      <div className="vehicle-details-grid">
+        {/* القسم الأول: المعلومات الأساسية */}
+        <div className="detail-section info-card">
+          <h3>Basic Information</h3>
           <div className="detail-grid">
             <div className="detail-item">
-              <label>Plate</label>
-              <p>{vehicle.plate}</p>
+              <label>Plate Number</label>
+              <p className="highlight">{vehicle.plate}</p>
+            </div>
+            <div className="detail-item">
+              <label>Brand & Model</label>
+              <p>{vehicle.brand} {vehicle.model}</p>
             </div>
             <div className="detail-item">
               <label>Year</label>
               <p>{vehicle.year}</p>
             </div>
+            {/* عرض المالك للمسؤولين فقط */}
+            {isAdmin && (
+              <div className="detail-item">
+                <label>Managed By (Owner)</label>
+                <p>{vehicle.owner_info?.full_name || 'System Admin'}</p>
+              </div>
+            )}
             <div className="detail-item">
-              <label>Status</label>
-              <span className={`status-badge ${vehicle.status.toLowerCase()}`}>
-                {vehicle.status}
-              </span>
-            </div>
-            <div className="detail-item">
-              <label>Created</label>
+              <label>Added On</label>
               <p>{new Date(vehicle.created_at).toLocaleDateString()}</p>
             </div>
           </div>
         </div>
         
-        <div className="detail-section">
+        {/* القسم الثاني: آخر موقع معروف */}
+        <div className="detail-section location-card">
           <h3>Last Known Location</h3>
           {lastLocation ? (
-            <div className="location-info">
-              <p><strong>Coordinates:</strong> {lastLocation.lat}, {lastLocation.lng}</p>
-              <p><strong>Speed:</strong> {lastLocation.speed ? `${lastLocation.speed} km/h` : 'N/A'}</p>
-              <p><strong>Heading:</strong> {lastLocation.heading ? `${lastLocation.heading}°` : 'N/A'}</p>
-              <p><strong>Recorded:</strong> {new Date(lastLocation.recorded_at).toLocaleString()}</p>
-              <p><strong>Source:</strong> {lastLocation.source}</p>
-              <Link to={`/locations/${id}`} className="btn-link">View History</Link>
+            <div className="location-content">
+              <div className="location-info">
+                <p><strong>Lat/Lng:</strong> {lastLocation.lat}, {lastLocation.lng}</p>
+                <p><strong>Speed:</strong> {lastLocation.speed ? `${lastLocation.speed} km/h` : 'Stopped'}</p>
+                <p><strong>Last Update:</strong> {new Date(lastLocation.recorded_at).toLocaleString()}</p>
+              </div>
+              <Link to={`/locations/${id}`} className="btn-link">View History Path</Link>
             </div>
           ) : (
-            <p>No location data available</p>
+            <p className="no-data">No location data recorded yet.</p>
           )}
         </div>
-        
-        <div className="detail-section">
-          <h3>Plans</h3>
+
+        {/* القسم الثالث: الجدولة والخطط */}
+        <div className="detail-section plans-card">
+          <h3>Assigned Plans</h3>
           {plans.length === 0 ? (
-            <p>No plans scheduled for this vehicle</p>
+            <p className="no-data">No active or future plans scheduled.</p>
           ) : (
             <div className="plans-list">
               {plans.map((plan) => (
-                <div key={plan.id} className="plan-item">
+                <div key={plan.id} className="plan-card-item">
                   <div className="plan-header">
-                    <h4>Plan #{plan.id}</h4>
-                    <span className={`status-badge ${plan.status.toLowerCase()}`}>
-                      {plan.status}
-                    </span>
+                    <strong>#{plan.id} - {plan.status}</strong>
+                    <span className="plan-date">{new Date(plan.start_at).toLocaleDateString()}</span>
                   </div>
-                  <p><strong>Personnel:</strong> {plan.personnel_info?.full_name || 'N/A'}</p>
-                  <p><strong>Start:</strong> {new Date(plan.start_at).toLocaleString()}</p>
-                  <p><strong>End:</strong> {new Date(plan.end_at).toLocaleString()}</p>
-                  {plan.description && <p><strong>Description:</strong> {plan.description}</p>}
+                  <div className="plan-body">
+                    <p><strong>Personnel:</strong> {plan.personnel_info?.full_name}</p>
+                    <p><strong>Duration:</strong> {new Date(plan.start_at).toLocaleTimeString()} - {new Date(plan.end_at).toLocaleTimeString()}</p>
+                    {plan.description && <p className="description">{plan.description}</p>}
+                  </div>
                 </div>
               ))}
             </div>

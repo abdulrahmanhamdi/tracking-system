@@ -99,3 +99,24 @@
   border-radius: 4px;
   margin-bottom: 1rem;
 }
+.map-wrapper {
+  margin-bottom: 2rem;
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  overflow: hidden;
+  background: white;
+  padding: 10px;
+}
+
+.map-wrapper h3 {
+  margin-bottom: 10px;
+  font-size: 1.1rem;
+  color: #34495e;
+}
+
+.history-map {
+  height: 450px; /* طول الخريطة */
+  width: 100%;
+  border-radius: 4px;
+  z-index: 1; /* لضمان عدم تداخلها مع القوائم المنسدلة */
+}

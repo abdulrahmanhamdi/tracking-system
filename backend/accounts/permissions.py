@@ -1,103 +1,112 @@
 from rest_framework import permissions
-from .models import User
-from vehicles.models import Vehicle
-from planning.models import VehicleUserPermission
-
 
 class IsAdminRole(permissions.BasePermission):
-    """Permission to check if user has ADMIN role."""
-    
+    """
+    صلاحية تسمح للمسؤولين (ADMIN) أو الـ Superuser أو الـ Staff بالوصول.
+    يتم استخدامها في العمليات الحساسة مثل الإضافة والحذف الكلي.
+    """
     def has_permission(self, request, view):
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.role == User.Role.ADMIN
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+        
+        # التحقق من الصلاحيات الإدارية بكافة أشكالها لضمان الوصول
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '').upper() == 'ADMIN'
         )
-
+        return is_admin
 
 class IsAdminOrReadOnly(permissions.BasePermission):
-    """Permission to allow read-only for all authenticated users, write for admins only."""
-    
+    """
+    تسمح بالقراءة لجميع المستخدمين المسجلين، 
+    ولكن عمليات الكتابة (إضافة، تعديل، حذف) محصورة بالمسؤولين فقط.
+    """
     def has_permission(self, request, view):
-        # Read permissions are allowed for any authenticated user
+        # السماح بالقراءة (GET, HEAD, OPTIONS) لأي مستخدم مسجل
         if request.method in permissions.SAFE_METHODS:
-            return request.user and request.user.is_authenticated
+            return bool(request.user and request.user.is_authenticated)
         
-        # Write permissions are only allowed for admins
-        return (
-            request.user and
-            request.user.is_authenticated and
-            request.user.role == User.Role.ADMIN
+        # العمليات الأخرى تتطلب صلاحيات مسؤول
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+            
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '').upper() == 'ADMIN'
         )
-
+        return is_admin
 
 class VehicleAccessPermission(permissions.BasePermission):
-    """Permission to check if user can access a vehicle."""
-    
+    """
+    صلاحية مخصصة للمركبات:
+    - تسمح لجميع المستخدمين المسجلين بعرض القائمة (GET).
+    - تمنع الإضافة والتعديل والحذف لغير المسؤولين.
+    """
     def has_permission(self, request, view):
-        # Must be authenticated
-        if not (request.user and request.user.is_authenticated):
+        # التحقق من أن المستخدم مسجل دخول أولاً
+        user = request.user
+        if not (user and user.is_authenticated):
             return False
         
-        # Admins can access all vehicles
-        if request.user.role == User.Role.ADMIN:
-            return True
-        
-        # For read operations, check if user has permission
-        if request.method in permissions.SAFE_METHODS:
-            return True  # Will check object-level permission
-        
-        # For write operations, only admins
-        return False
-    
-    def has_object_permission(self, request, view, obj):
-        """Check object-level permission."""
-        # Admins can access all vehicles
-        if request.user.role == User.Role.ADMIN:
-            return True
-        
-        # Users can only access vehicles they have permission for
-        if isinstance(obj, Vehicle):
-            return VehicleUserPermission.objects.filter(
-                user=request.user,
-                vehicle=obj
-            ).exists()
-        
-        # For VehicleLocation, check the vehicle
-        if hasattr(obj, 'vehicle'):
-            return VehicleUserPermission.objects.filter(
-                user=request.user,
-                vehicle=obj.vehicle
-            ).exists()
-        
-        return False
-
-
-class PlanAccessPermission(permissions.BasePermission):
-    """Permission to check if user can access a plan."""
-    
-    def has_permission(self, request, view):
-        # Must be authenticated
-        if not (request.user and request.user.is_authenticated):
-            return False
-        
-        # Admins can access all plans
-        if request.user.role == User.Role.ADMIN:
-            return True
-        
-        # Users can view plans (read-only)
+        # السماح بالقراءة لجميع المسجلين
         if request.method in permissions.SAFE_METHODS:
             return True
         
-        # Users cannot create/modify plans (only admins)
-        return False
-    
+        # أي عملية تغيير تتطلب صلاحيات مسؤول
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '').upper() == 'ADMIN'
+        )
+        return is_admin
+
     def has_object_permission(self, request, view, obj):
-        """Check object-level permission."""
-        # Admins can access all plans
-        if request.user.role == User.Role.ADMIN:
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+
+        # المسؤول لديه صلاحية كاملة على أي كائن مركبة
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '').upper() == 'ADMIN'
+        )
+        if is_admin:
             return True
         
-        # Users can only view plans (read-only)
+        # المستخدم العادي لديه صلاحية القراءة فقط للمركبات التي تظهر له
         return request.method in permissions.SAFE_METHODS
 
+class PlanAccessPermission(permissions.BasePermission):
+    """
+    صلاحية الوصول للخطط:
+    - المسؤول يدير كل الخطط.
+    - المستخدم العادي يدير الخطط التي أنشأها فقط ويشاهد البقية.
+    """
+    def has_permission(self, request, view):
+        return bool(request.user and request.user.is_authenticated)
+    
+    def has_object_permission(self, request, view, obj):
+        user = request.user
+        if not (user and user.is_authenticated):
+            return False
+
+        # الأدمن لديه صلاحية مطلقة
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            getattr(user, 'role', '').upper() == 'ADMIN'
+        )
+        if is_admin:
+            return True
+        
+        # السماح للمالك فقط بالتعديل أو الحذف
+        if hasattr(obj, 'created_by') and obj.created_by == user:
+            return True
+            
+        # الآخرون يمكنهم القراءة فقط
+        return request.method in permissions.SAFE_METHODS

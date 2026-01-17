@@ -79,8 +79,9 @@ function LiveTracking() {
             setError('Not authenticated')
             return
         }
-
-        const wsUrl = `${WS_URL}/ws/live?vehicle_id=${vehicleId}&token=${token}`
+    
+        // المسار يطابق backend/core/routing.py
+        const wsUrl = `${WS_URL}/ws/tracking/live/?vehicle_id=${vehicleId}&token=${token}`
         const ws = new WebSocket(wsUrl)
         wsRef.current = ws
 
@@ -95,9 +96,9 @@ function LiveTracking() {
                 const data = JSON.parse(event.data)
                 if (data.type === 'location') {
                     setCurrentLocation(data)
-                    // إضافة الإحداثيات الجديدة لمصفوفة المسار
                     setPathHistory(prev => [...prev, [data.lat, data.lng]])
                 } else if (data.type === 'status') {
+                    // تحديث الحالة بناءً على رسائل الـ Consumer
                     setConnectionStatus(data.streaming ? 'connected' : 'paused')
                 }
             } catch (err) {
@@ -142,6 +143,9 @@ function LiveTracking() {
         setSelectedVehicle(vehicleId || null)
         setCurrentLocation(null)
     }
+
+    // جلب بيانات السيارة المختارة لعرضها في الخريطة
+    const selectedVehicleData = vehicles.find(v => v.id === parseInt(selectedVehicle));
 
     return (
         <div className="page-container">
@@ -188,7 +192,7 @@ function LiveTracking() {
                 <div className="tracking-content">
                     <div className="map-wrapper" style={{ height: '500px', width: '100%', borderRadius: '12px', overflow: 'hidden', boxShadow: '0 4px 12px rgba(0,0,0,0.1)' }}>
                         <MapContainer 
-                            center={[40.7128, -74.0060]} 
+                            center={[41.0082, 28.9784]} // تم التعديل إلى إسطنبول
                             zoom={13} 
                             style={{ height: '100%', width: '100%' }}
                         >
@@ -196,16 +200,12 @@ function LiveTracking() {
                             
                             {currentLocation && (
                                 <>
-                                    {/* التكبير التلقائي والتركيز على الموقع الجديد */}
                                     <RecenterMap position={[currentLocation.lat, currentLocation.lng]} />
-                                    
-                                    {/* رسم خط المسار المقطوع */}
                                     <Polyline positions={pathHistory} color="blue" weight={4} opacity={0.6} />
-                                    
-                                    {/* علامة السيارة على الخريطة */}
                                     <Marker position={[currentLocation.lat, currentLocation.lng]}>
                                         <Popup>
-                                            <strong>Vehicle: {selectedVehicle}</strong><br />
+                                            <strong>Plate: {selectedVehicleData?.plate}</strong><br />
+                                            Vehicle: {selectedVehicleData?.brand} {selectedVehicleData?.model}<br />
                                             Speed: {currentLocation.speed} km/h
                                         </Popup>
                                     </Marker>

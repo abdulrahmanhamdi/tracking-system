@@ -1,5 +1,6 @@
 """
 Django management command to seed demo data.
+Full version - Detailed coordinates and logic for mu.alhardan@gmail.com
 """
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
@@ -18,7 +19,17 @@ class Command(BaseCommand):
     def handle(self, *args, **options):
         self.stdout.write(self.style.SUCCESS('Starting to seed demo data...'))
 
-        # Create admin user
+        # ------------------------------------------------------------------
+        # 1. Cleanup Section (Important for re-runs)
+        # ------------------------------------------------------------------
+        self.stdout.write(self.style.WARNING('Cleaning up existing plans and permissions to avoid conflicts...'))
+        Plan.objects.all().delete()
+        VehicleUserPermission.objects.all().delete()
+
+        # ------------------------------------------------------------------
+        # 2. Users Section
+        # ------------------------------------------------------------------
+        # Admin User
         admin_user, created = User.objects.get_or_create(
             email='admin@example.com',
             defaults={
@@ -37,13 +48,13 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f'Admin user already exists: {admin_user.email}'))
 
-        # Create normal user
+        # Normal User (Linked to your account for Live Tracking)
         normal_user, created = User.objects.get_or_create(
-            email='user@example.com',
+            email='mu.alhardan@gmail.com',
             defaults={
-                'username': 'user',
-                'first_name': 'Normal',
-                'last_name': 'User',
+                'username': 'mu_alhardan',
+                'first_name': 'Mu',
+                'last_name': 'Alhardan',
                 'role': User.Role.USER,
             }
         )
@@ -54,7 +65,9 @@ class Command(BaseCommand):
         else:
             self.stdout.write(self.style.WARNING(f'Normal user already exists: {normal_user.email}'))
 
-        # Create vehicles with simulation routes
+        # ------------------------------------------------------------------
+        # 3. Vehicles Section (Full Coordinates Mapping)
+        # ------------------------------------------------------------------
         vehicles_data = [
             {
                 'plate': 'ABC-123',
@@ -62,12 +75,15 @@ class Command(BaseCommand):
                 'model': 'Camry',
                 'year': 2020,
                 'status': Vehicle.Status.ACTIVE,
+                'is_streaming': True,
                 'simulation_route': [
-                    [40.7128, -74.0060],  # NYC
-                    [40.7138, -74.0070],
-                    [40.7148, -74.0080],
-                    [40.7158, -74.0090],
-                    [40.7168, -74.0100],
+                    [41.0082, 28.9784],
+                    [41.0122, 28.9844],
+                    [41.0150, 28.9790],
+                    [41.0200, 28.9700],
+                    [41.0150, 28.9790],
+                    [41.0122, 28.9844],
+                    [41.0082, 28.9784],
                 ]
             },
             {
@@ -76,11 +92,15 @@ class Command(BaseCommand):
                 'model': 'Civic',
                 'year': 2021,
                 'status': Vehicle.Status.ACTIVE,
+                'is_streaming': True,
                 'simulation_route': [
-                    [40.7580, -73.9855],  # Times Square area
-                    [40.7590, -73.9865],
-                    [40.7600, -73.9875],
-                    [40.7610, -73.9885],
+                    [41.0367, 28.9850],
+                    [41.0400, 28.9900],
+                    [41.0450, 28.9950],
+                    [41.0480, 29.0000],
+                    [41.0450, 28.9950],
+                    [41.0400, 28.9900],
+                    [41.0367, 28.9850],
                 ]
             },
             {
@@ -88,11 +108,16 @@ class Command(BaseCommand):
                 'brand': 'Ford',
                 'model': 'F-150',
                 'year': 2019,
-                'status': Vehicle.Status.INACTIVE,
+                'status': Vehicle.Status.ACTIVE,
+                'is_streaming': True,
                 'simulation_route': [
-                    [40.7505, -73.9934],  # Central Park area
-                    [40.7515, -73.9944],
-                    [40.7525, -73.9954],
+                    [41.0000, 28.9000],
+                    [41.0010, 28.9010],
+                    [41.0020, 28.9020],
+                    [41.0030, 28.9030],
+                    [41.0040, 28.9040],
+                    [41.0020, 28.9020],
+                    [41.0000, 28.9000],
                 ]
             },
             {
@@ -101,12 +126,15 @@ class Command(BaseCommand):
                 'model': 'Model 3',
                 'year': 2022,
                 'status': Vehicle.Status.ACTIVE,
+                'is_streaming': True,
                 'simulation_route': [
-                    [40.7282, -73.7949],  # Brooklyn area
-                    [40.7292, -73.7959],
-                    [40.7302, -73.7969],
-                    [40.7312, -73.7979],
-                    [40.7322, -73.7989],
+                    [40.9900, 29.0200],
+                    [40.9920, 29.0220],
+                    [40.9950, 29.0250],
+                    [41.0000, 29.0300],
+                    [40.9950, 29.0250],
+                    [40.9920, 29.0220],
+                    [40.9900, 29.0200],
                 ]
             },
             {
@@ -115,15 +143,20 @@ class Command(BaseCommand):
                 'model': 'X5',
                 'year': 2021,
                 'status': Vehicle.Status.MAINTENANCE,
+                'is_streaming': False,
                 'simulation_route': [
-                    [40.7614, -73.9776],  # Lincoln Center area
-                    [40.7624, -73.9786],
-                    [40.7634, -73.9796],
+                    [41.0600, 29.0100],
+                    [41.0620, 29.0120],
+                    [41.0650, 29.0150],
+                    [41.0700, 29.0200],
+                    [41.0650, 29.0150],
+                    [41.0620, 29.0120],
+                    [41.0600, 29.0100],
                 ]
             },
         ]
 
-        vehicles = []
+        vehicles_list = []
         for v_data in vehicles_data:
             vehicle, created = Vehicle.objects.get_or_create(
                 plate=v_data['plate'],
@@ -133,16 +166,20 @@ class Command(BaseCommand):
                     'model': v_data['model'],
                     'year': v_data['year'],
                     'status': v_data['status'],
+                    'is_streaming': v_data['is_streaming'],
                     'simulation_route': v_data['simulation_route'],
                 }
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created vehicle: {vehicle.plate}'))
-            else:
-                self.stdout.write(self.style.WARNING(f'Vehicle already exists: {vehicle.plate}'))
-            vehicles.append(vehicle)
+            if not created:
+                vehicle.is_streaming = v_data['is_streaming']
+                vehicle.simulation_route = v_data['simulation_route']
+                vehicle.status = v_data['status']
+                vehicle.save()
+            vehicles_list.append(vehicle)
 
-        # Create personnel
+        # ------------------------------------------------------------------
+        # 4. Personnel Section
+        # ------------------------------------------------------------------
         personnel_data = [
             {'full_name': 'John Doe', 'title': 'Driver', 'phone': '555-0101', 'email': 'john@example.com'},
             {'full_name': 'Jane Smith', 'title': 'Driver', 'phone': '555-0102', 'email': 'jane@example.com'},
@@ -151,91 +188,88 @@ class Command(BaseCommand):
             {'full_name': 'Charlie Brown', 'title': 'Manager', 'phone': '555-0105', 'email': 'charlie@example.com'},
         ]
 
-        personnel_list = []
+        personnel_objs = []
         for p_data in personnel_data:
             person, created = Personnel.objects.get_or_create(
                 email=p_data['email'],
                 defaults=p_data
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created personnel: {person.full_name}'))
-            else:
-                self.stdout.write(self.style.WARNING(f'Personnel already exists: {person.full_name}'))
-            personnel_list.append(person)
+            personnel_objs.append(person)
 
-        # Create vehicle permissions for normal user (only first 2 vehicles)
-        for vehicle in vehicles[:2]:
-            perm, created = VehicleUserPermission.objects.get_or_create(
+        # ------------------------------------------------------------------
+        # 5. Permissions Section (Linking vehicles to your mu account)
+        # ------------------------------------------------------------------
+        for vehicle in vehicles_list:
+            VehicleUserPermission.objects.get_or_create(
                 user=normal_user,
                 vehicle=vehicle
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created permission: {normal_user.email} -> {vehicle.plate}'))
+        self.stdout.write(self.style.SUCCESS(f'Granted permissions for: {normal_user.email}'))
 
-        # Create plans (today + future) without conflicts
+        # ------------------------------------------------------------------
+        # 6. Plans Section (Active and Future Plans)
+        # ------------------------------------------------------------------
         now = timezone.now()
-        today_start = now.replace(hour=9, minute=0, second=0, microsecond=0)
+        active_start = now - timedelta(minutes=20)
         
+        # We ensure Vehicle ID 3 (Index 2) has an active plan NOW
         plans_data = [
             {
-                'vehicle': vehicles[0],
-                'personnel': personnel_list[0],
-                'start_at': today_start,
-                'end_at': today_start + timedelta(hours=2),
-                'description': 'Morning delivery route',
-                'status': Plan.Status.PLANNED,
-            },
-            {
-                'vehicle': vehicles[0],
-                'personnel': personnel_list[0],
-                'start_at': today_start + timedelta(hours=3),
-                'end_at': today_start + timedelta(hours=5),
-                'description': 'Afternoon pickup route',
-                'status': Plan.Status.PLANNED,
-            },
-            {
-                'vehicle': vehicles[1],
-                'personnel': personnel_list[1],
-                'start_at': today_start,
-                'end_at': today_start + timedelta(hours=4),
-                'description': 'Full day route',
+                'vehicle': vehicles_list[0],
+                'personnel': personnel_objs[0],
+                'start_at': active_start,
+                'end_at': active_start + timedelta(hours=4),
+                'description': 'Route for ABC-123',
                 'status': Plan.Status.ACTIVE,
+                'created_by': normal_user,
             },
             {
-                'vehicle': vehicles[3],
-                'personnel': personnel_list[2],
-                'start_at': today_start + timedelta(days=1),
-                'end_at': today_start + timedelta(days=1, hours=3),
-                'description': 'Tomorrow morning route',
-                'status': Plan.Status.PLANNED,
+                'vehicle': vehicles_list[1],
+                'personnel': personnel_objs[1],
+                'start_at': active_start,
+                'end_at': active_start + timedelta(hours=4),
+                'description': 'Route for XYZ-789',
+                'status': Plan.Status.ACTIVE,
+                'created_by': normal_user,
             },
             {
-                'vehicle': vehicles[3],
-                'personnel': personnel_list[3],
-                'start_at': today_start + timedelta(days=2),
-                'end_at': today_start + timedelta(days=2, hours=2),
-                'description': 'Future route',
+                'vehicle': vehicles_list[2], # IMPORTANT: Vehicle 3 (DEF-456)
+                'personnel': personnel_objs[2],
+                'start_at': active_start,
+                'end_at': active_start + timedelta(hours=4),
+                'description': 'Test Route for Vehicle 3',
+                'status': Plan.Status.ACTIVE,
+                'created_by': normal_user,
+            },
+            {
+                'vehicle': vehicles_list[3],
+                'personnel': personnel_objs[3],
+                'start_at': now + timedelta(hours=2),
+                'end_at': now + timedelta(hours=6),
+                'description': 'Evening Route',
                 'status': Plan.Status.PLANNED,
+                'created_by': normal_user,
+            },
+            {
+                'vehicle': vehicles_list[0],
+                'personnel': personnel_objs[4],
+                'start_at': now + timedelta(days=1),
+                'end_at': now + timedelta(days=1, hours=3),
+                'description': 'Tomorrow Delivery',
+                'status': Plan.Status.PLANNED,
+                'created_by': normal_user,
             },
         ]
 
-        for plan_data in plans_data:
-            plan, created = Plan.objects.get_or_create(
-                vehicle=plan_data['vehicle'],
-                personnel=plan_data['personnel'],
-                start_at=plan_data['start_at'],
-                defaults={
-                    'end_at': plan_data['end_at'],
-                    'description': plan_data['description'],
-                    'status': plan_data['status'],
-                }
+        for p_data in plans_data:
+            Plan.objects.create(
+                vehicle=p_data['vehicle'],
+                personnel=p_data['personnel'],
+                start_at=p_data['start_at'],
+                end_at=p_data['end_at'],
+                description=p_data['description'],
+                status=p_data['status'],
+                created_by=p_data['created_by']
             )
-            if created:
-                self.stdout.write(self.style.SUCCESS(f'Created plan: {plan.vehicle.plate} - {plan.start_at}'))
-            else:
-                self.stdout.write(self.style.WARNING(f'Plan already exists: {plan.vehicle.plate} - {plan.start_at}'))
 
-        self.stdout.write(self.style.SUCCESS('\nDemo data seeding completed!'))
-        self.stdout.write(self.style.SUCCESS(f'\nAdmin credentials: admin@example.com / Admin1234!'))
-        self.stdout.write(self.style.SUCCESS(f'User credentials: user@example.com / User1234!'))
-
+        self.stdout.write(self.style.SUCCESS('\nFinished seeding! Vehicle 3 is now ACTIVE and Tracking should work.'))

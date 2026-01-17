@@ -7,58 +7,69 @@ from .models import Vehicle
 from .serializers import VehicleSerializer
 from accounts.permissions import VehicleAccessPermission, IsAdminRole
 
-
 class VehicleViewSet(viewsets.ModelViewSet):
-    """Vehicle viewset."""
+    """
+    ViewSet لإدارة المركبات.
+    - العرض متاح للمستخدمين حسب ملكيتهم، وللمسؤولين بشكل كامل.
+    - الإضافة، التعديل، والحذف محصور فقط بالمسؤولين (ADMIN).
+    """
     queryset = Vehicle.objects.all()
     serializer_class = VehicleSerializer
+    
+    # الصلاحية الافتراضية للتحكم بالوصول العام
     permission_classes = [VehicleAccessPermission]
+    
     filter_backends = [DjangoFilterBackend, filters.SearchFilter, filters.OrderingFilter]
+    
+    # تعريف الحقول التي يمكن الفلترة والبحث من خلالها
     filterset_fields = ['status', 'plate', 'brand']
     search_fields = ['plate', 'brand', 'model']
     ordering_fields = ['created_at', 'plate', 'brand', 'model']
     ordering = ['-created_at']
 
     def get_queryset(self):
-        """Filter vehicles based on user permissions and query parameters."""
+        """
+        تصفية قائمة المركبات بناءً على هوية المستخدم ودوره الإداري.
+        """
         user = self.request.user
-        queryset = Vehicle.objects.all()
         
-        # Admins can see all vehicles
-        if user.role != 'ADMIN':
-            # Users can only see vehicles they have permission for
-            from planning.models import VehicleUserPermission
-            permitted_vehicles = VehicleUserPermission.objects.filter(
-                user=user
-            ).values_list('vehicle_id', flat=True)
-            queryset = queryset.filter(id__in=permitted_vehicles)
+        # التأكد من أن المستخدم مسجل دخول
+        if not user.is_authenticated:
+            return Vehicle.objects.none()
+            
+        # 1. المسؤول (ADMIN/Superuser/Staff) يرى جميع المركبات دون قيود
+        is_admin = (
+            user.is_superuser or 
+            user.is_staff or 
+            (hasattr(user, 'role') and str(user.role).upper() == 'ADMIN')
+        )
         
-        # Apply search filter
-        search = self.request.query_params.get('search', None)
-        if search:
-            queryset = queryset.filter(
-                Q(plate__icontains=search) |
-                Q(brand__icontains=search) |
-                Q(model__icontains=search)
-            )
+        if is_admin:
+            return Vehicle.objects.all()
         
-        # Apply individual filters
-        status = self.request.query_params.get('status', None)
-        if status:
-            queryset = queryset.filter(status=status)
-        
-        plate = self.request.query_params.get('plate', None)
-        if plate:
-            queryset = queryset.filter(plate__icontains=plate)
-        
-        brand = self.request.query_params.get('brand', None)
-        if brand:
-            queryset = queryset.filter(brand__icontains=brand)
-        
-        return queryset
+        # 2. المستخدم العادي (USER): يرى المركبات التي يملكها فقط
+        return Vehicle.objects.filter(owner=user).filter(
+            status__in=['ACTIVE', 'INACTIVE']
+        ).distinct()
 
     def get_permissions(self):
-        """Override permissions for write operations."""
+        """
+        تحديد الصلاحية المطلوبة بناءً على نوع العملية.
+        """
+        # فرض صلاحية IsAdminRole لعمليات (إضافة، تعديل، حذف)
         if self.action in ['create', 'update', 'partial_update', 'destroy']:
             return [IsAdminRole()]
-        return super().get_permissions()
+        
+        return [permission() for permission in self.permission_classes]
+
+    def perform_create(self, serializer):
+        """
+        عند إنشاء مركبة جديدة بواسطة المسؤول:
+        - إذا تم إرسال معرف مالك (owner) في الطلب، يتم استخدامه.
+        - إذا لم يتم إرساله، يتم تعيين المسؤول الحالي كمالك افتراضي.
+        """
+        owner_id = self.request.data.get('owner')
+        if owner_id:
+            serializer.save(owner_id=owner_id)
+        else:
+            serializer.save(owner=self.request.user)

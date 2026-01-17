@@ -6,10 +6,10 @@ import secrets
 
 
 class UserManager(BaseUserManager):
-    """Custom user manager."""
+    """مدير مخصص للمستخدمين (Custom user manager)."""
     
     def create_user(self, email, password=None, **extra_fields):
-        """Create and save a regular user."""
+        """إنشاء وحفظ مستخدم عادي."""
         if not email:
             raise ValueError('The Email field must be set')
         email = self.normalize_email(email)
@@ -19,10 +19,11 @@ class UserManager(BaseUserManager):
         return user
 
     def create_superuser(self, email, password=None, **extra_fields):
-        """Create and save a superuser."""
+        """إنشاء وحفظ مسؤول (Superuser) مع تعيين دور ADMIN تلقائياً."""
         extra_fields.setdefault('is_staff', True)
         extra_fields.setdefault('is_superuser', True)
-        extra_fields.setdefault('role', User.Role.ADMIN)
+        # تم تعديل هذا السطر لاستخدام النص 'ADMIN' مباشرة لتجنب خطأ تعريف الكلاس
+        extra_fields.setdefault('role', 'ADMIN') 
         extra_fields.setdefault('is_active', True)
 
         if extra_fields.get('is_staff') is not True:
@@ -34,7 +35,7 @@ class UserManager(BaseUserManager):
 
 
 class User(AbstractUser):
-    """Custom User model."""
+    """موديل المستخدم المخصص (Custom User model)."""
     
     class Role(models.TextChoices):
         ADMIN = 'ADMIN', 'Admin'
@@ -65,7 +66,7 @@ class User(AbstractUser):
 
 
 class PasswordResetToken(models.Model):
-    """Password reset token model."""
+    """موديل رمز إعادة تعيين كلمة المرور."""
     user = models.ForeignKey(User, on_delete=models.CASCADE, related_name='password_reset_tokens')
     token_hash = models.CharField(max_length=64)  # SHA-256 hash
     expires_at = models.DateTimeField()
@@ -84,16 +85,16 @@ class PasswordResetToken(models.Model):
 
     @staticmethod
     def generate_token():
-        """Generate a secure random token."""
+        """توليد رمز عشوائي آمن."""
         return secrets.token_urlsafe(32)
 
     @staticmethod
     def hash_token(token):
-        """Hash a token using SHA-256."""
+        """تشفير الرمز باستخدام SHA-256."""
         return hashlib.sha256(token.encode()).hexdigest()
 
     def is_valid(self):
-        """Check if token is valid (not used and not expired)."""
+        """التحقق من صلاحية الرمز (غير مستخدم ولم تنتهِ صلاحيته)."""
         if self.used_at:
             return False
         return timezone.now() < self.expires_at

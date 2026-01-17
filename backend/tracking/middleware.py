@@ -18,44 +18,47 @@ class JWTAuthMiddleware(BaseMiddleware):
     
     async def __call__(self, scope, receive, send):
         """Process WebSocket connection and add user to scope."""
-        # Extract token from query string or headers
+        # 1. استخراج التوكن من رابط الطلب (Query String) أو الهيدرز
         token = None
         
-        # Try query string
+        # محاولة جلب التوكن من الرابط (مثلاً: ?token=...)
         query_string = scope.get('query_string', b'').decode()
         if query_string:
             query_params = parse_qs(query_string)
             token = query_params.get('token', [None])[0]
         
-        # Try headers if not in query string
+        # إذا لم يوجد في الرابط، نحاول جلب التوكن من الـ Headers
         if not token:
             headers = dict(scope.get('headers', []))
             auth_header = headers.get(b'authorization', b'').decode()
             if auth_header.startswith('Bearer '):
                 token = auth_header.split('Bearer ')[1]
         
-        # Authenticate token
+        # 2. التحقق من صحة التوكن وجلب المستخدم
         user = None
         if token:
             try:
+                # التحقق الأولي من هيكلية التوكن
                 UntypedToken(token)
+                # فك تشفير التوكن للحصول على معرف المستخدم (user_id)
                 decoded_data = jwt_decode(token, settings.SECRET_KEY, algorithms=["HS256"])
                 user_id = decoded_data.get('user_id')
+                
                 if user_id:
                     user = await self.get_user(user_id)
-            except (InvalidToken, TokenError):
-                pass
+            except (InvalidToken, TokenError, Exception):
+                # في حال كان التوكن منتهياً أو غير صالح، نترك المستخدم None
+                user = None
         
-        # Add user to scope
+        # 3. إضافة كائن المستخدم إلى الـ scope ليكون متاحاً في الـ Consumer
         scope['user'] = user
         
         return await super().__call__(scope, receive, send)
     
     @database_sync_to_async
     def get_user(self, user_id):
-        """Get user asynchronously."""
+        """جلب المستخدم من قاعدة البيانات بشكل غير متزامن."""
         try:
             return User.objects.get(id=user_id)
         except User.DoesNotExist:
             return None
-

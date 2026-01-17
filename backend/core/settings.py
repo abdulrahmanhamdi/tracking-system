@@ -124,10 +124,12 @@ AUTH_PASSWORD_VALIDATORS = [
 
 LANGUAGE_CODE = 'en-us'
 
-TIME_ZONE = 'UTC'
+# التعديل المطلوب لضبط التوقيت على إسطنبول
+TIME_ZONE = 'Europe/Istanbul'
 
 USE_I18N = True
 
+# إبقاء USE_TZ مفعلة لإدارة التوقيت العالمي والمحلي بشكل سليم
 USE_TZ = True
 
 
@@ -206,4 +208,3 @@ if os.getenv('USE_REDIS', 'False') != 'True':
             'BACKEND': 'channels.layers.InMemoryChannelLayer'
         }
     }
-

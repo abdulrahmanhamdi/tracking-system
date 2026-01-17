@@ -14,7 +14,7 @@ function AdminPanel() {
   const [error, setError] = useState('')
   const navigate = useNavigate()
 
-  // Form states
+  // حالات النماذج (Form states)
   const [showUserForm, setShowUserForm] = useState(false)
   const [showVehicleForm, setShowVehicleForm] = useState(false)
   const [showPersonnelForm, setShowPersonnelForm] = useState(false)
@@ -26,15 +26,22 @@ function AdminPanel() {
     checkAdminAccess()
   }, [])
 
+  // دالة مساعدة للتحقق من صلاحية الأدمن بشكل مرن (تشمل السوبر يوزر)
+  const isAdmin = (userData) => {
+    return userData && (userData.is_superuser || (userData.role && userData.role.toUpperCase() === 'ADMIN'));
+  };
+
   useEffect(() => {
-    if (user?.role === 'ADMIN') {
+    // جلب البيانات فقط إذا كان المستخدم أدمن
+    if (isAdmin(user)) {
       fetchData()
     }
   }, [activeTab, user])
 
   const checkAdminAccess = async () => {
     const userData = await getUser()
-    if (userData?.role !== 'ADMIN') {
+    // إذا لم يكن المستخدم أدمن أو سوبر يوزر، يتم توجيهه للصفحة الرئيسية
+    if (!isAdmin(userData)) {
       navigate('/')
       return
     }
@@ -108,7 +115,8 @@ function AdminPanel() {
     }
   }
 
-  if (!user || user.role !== 'ADMIN') {
+  // عرض رسالة منع الوصول إذا لم تتحقق الصلاحية
+  if (!user || !isAdmin(user)) {
     return <div className="page-container">Access denied</div>
   }
 
@@ -168,14 +176,14 @@ function AdminPanel() {
                     </tr>
                   </thead>
                   <tbody>
-                    {users.map(user => (
-                      <tr key={user.id}>
-                        <td>{user.email}</td>
-                        <td>{user.first_name} {user.last_name}</td>
+                    {users.map(userItem => (
+                      <tr key={userItem.id}>
+                        <td>{userItem.email}</td>
+                        <td>{userItem.first_name} {userItem.last_name}</td>
                         <td>
                           <select
-                            value={user.role}
-                            onChange={(e) => handleUpdateUser(user.id, { role: e.target.value })}
+                            value={userItem.role}
+                            onChange={(e) => handleUpdateUser(userItem.id, { role: e.target.value })}
                             className="role-select"
                           >
                             <option value="ADMIN">Admin</option>
@@ -185,13 +193,13 @@ function AdminPanel() {
                         <td>
                           <input
                             type="checkbox"
-                            checked={user.is_active}
-                            onChange={(e) => handleUpdateUser(user.id, { is_active: e.target.checked })}
+                            checked={userItem.is_active}
+                            onChange={(e) => handleUpdateUser(userItem.id, { is_active: e.target.checked })}
                           />
                         </td>
                         <td>
-                          <span className={`status-badge ${user.is_active ? 'active' : 'inactive'}`}>
-                            {user.is_active ? 'Active' : 'Inactive'}
+                          <span className={`status-badge ${userItem.is_active ? 'active' : 'inactive'}`}>
+                            {userItem.is_active ? 'Active' : 'Inactive'}
                           </span>
                         </td>
                       </tr>
@@ -212,7 +220,7 @@ function AdminPanel() {
               </div>
               {showVehicleForm && (
                 <div className="form-section">
-                  <p>Vehicle creation form can be added here</p>
+                  <p>Vehicle creation form can be added here or used from Vehicles page</p>
                 </div>
               )}
               <div className="table-container">
@@ -333,7 +341,7 @@ function AdminPanel() {
                       <textarea
                         value={routeData}
                         onChange={(e) => setRouteData(e.target.value)}
-                        placeholder='[[40.7128, -74.0060], [40.7138, -74.0070], [40.7148, -74.0080]]'
+                        placeholder='[[40.7128, 28.9744], [40.7138, 28.9754]]'
                         rows="6"
                         className="route-textarea"
                         required
@@ -351,4 +359,4 @@ function AdminPanel() {
   )
 }
 
-export default AdminPanel
+export default AdminPanel;

@@ -1,28 +1,34 @@
 import json
 import asyncio
+import math
+import random
+from datetime import timedelta
 from channels.generic.websocket import AsyncWebsocketConsumer
 from channels.db import database_sync_to_async
 from django.utils import timezone
 from vehicles.models import Vehicle
 from .models import VehicleLocation
-from planning.models import VehicleUserPermission
-
+from planning.models import Plan, VehicleUserPermission
 
 class LiveTrackingConsumer(AsyncWebsocketConsumer):
-    """WebSocket consumer for live vehicle tracking."""
-    
+    """
+    WebSocket consumer لتعقب المركبات حياً مع تفعيل الخطط تلقائياً والتحقق من الصلاحيات.
+    """
+
     async def connect(self):
-        """Handle WebSocket connection."""
+        """التعامل مع اتصال WebSocket والتحقق من الصلاحيات والخطط."""
         self.vehicle_id = None
         self.user = None
         self.vehicle = None
         self.stream_task = None
         
-        # Get vehicle_id from query string
-        vehicle_id = self.scope.get('query_string', b'').decode().split('vehicle_id=')[-1].split('&')[0]
+        # استخراج المعاملات من Query String
+        query_string = self.scope.get('query_string', b'').decode()
+        params = dict(x.split('=') for x in query_string.split('&') if '=' in x)
+        vehicle_id = params.get('vehicle_id')
         
         if not vehicle_id:
-            await self.close(code=4000)  # Invalid request
+            await self.close(code=4000)
             return
         
         try:
@@ -31,171 +37,152 @@ class LiveTrackingConsumer(AsyncWebsocketConsumer):
             await self.close(code=4000)
             return
         
-        # Get user from scope (set by JWT middleware)
+        # الحصول على المستخدم والتحقق من هويته
         self.user = self.scope.get('user')
         if not self.user or not self.user.is_authenticated:
-            await self.close(code=4001)  # Unauthorized
+            await self.close(code=4001)
             return
         
-        # Get vehicle and check permissions
+        # جلب بيانات السيارة
         self.vehicle = await self.get_vehicle(self.vehicle_id)
         if not self.vehicle:
-            await self.close(code=4004)  # Not found
+            await self.close(code=4004)
             return
         
-        # Check permissions
-        has_permission = await self.check_permission(self.user, self.vehicle)
-        if not has_permission:
-            await self.close(code=4003)  # Forbidden
+        # 1. التحقق من الصلاحيات وتفعيل الخطة تلقائياً
+        self.active_plan = await self.get_and_activate_plan()
+        
+        # السماح للآدمن بالتتبع دائماً، أما المستخدم العادي فيحتاج لخطة نشطة وصلاحية
+        if self.user.role != 'ADMIN' and not self.active_plan:
+            await self.close(code=4003)  
             return
         
-        # Accept connection
+        # قبول الاتصال
         await self.accept()
         
-        # Start streaming if vehicle is set to stream
-        if self.vehicle.is_streaming:
-            self.stream_task = asyncio.create_task(self.stream_locations())
-        else:
-            # Send status message
-            await self.send(text_data=json.dumps({
-                'type': 'status',
-                'message': 'Streaming is paused. Use start endpoint to begin.',
-                'streaming': False
-            }))
-    
+        # بدء مهمة بث المواقع
+        self.stream_task = asyncio.create_task(self.stream_locations())
+
     async def disconnect(self, close_code):
-        """Handle WebSocket disconnection."""
+        """تنظيف المهام عند قطع الاتصال."""
         if self.stream_task:
             self.stream_task.cancel()
             try:
                 await self.stream_task
             except asyncio.CancelledError:
                 pass
-    
-    
+
     @database_sync_to_async
     def get_vehicle(self, vehicle_id):
-        """Get vehicle by ID."""
         try:
             return Vehicle.objects.get(id=vehicle_id)
         except Vehicle.DoesNotExist:
             return None
-    
+
     @database_sync_to_async
-    def check_permission(self, user, vehicle):
-        """Check if user has permission to track vehicle."""
-        # Admin always has permission
-        if user.role == 'ADMIN':
-            return True
+    def get_and_activate_plan(self):
+        """
+        البحث عن خطة متاحة للمستخدم وتفعيلها (ACTIVE) إذا كان الوقت مناسباً.
+        """
+        now = timezone.now()
+        buffer_time = timedelta(minutes=15)
         
-        # Check VehicleUserPermission
-        return VehicleUserPermission.objects.filter(
-            user=user,
-            vehicle=vehicle
+        # التحقق أولاً من وجود صلاحية للمستخدم على هذه السيارة
+        has_permission = VehicleUserPermission.objects.filter(
+            user=self.user, 
+            vehicle_id=self.vehicle_id
         ).exists()
-    
+        
+        if not has_permission and self.user.role != 'ADMIN':
+            return None
+
+        # البحث عن خطة (PLANNED أو ACTIVE) ضمن النافذة الزمنية
+        plan = Plan.objects.filter(
+            vehicle_id=self.vehicle_id,
+            start_at__lte=now + buffer_time,
+            end_at__gte=now - buffer_time,
+            status__in=['PLANNED', 'ACTIVE']
+        ).first()
+
+        # إذا كانت الخطة موجودة ولكنها PLANNED، يتم تفعيلها فوراً
+        if plan and plan.status == 'PLANNED':
+            plan.status = 'ACTIVE'
+            plan.save()
+            
+        return plan
+
     async def stream_locations(self):
-        """Stream location updates every 1-2 seconds."""
+        """بث تحديثات الموقع الوهمية."""
         route = await database_sync_to_async(self.vehicle.get_simulation_route)()
         
         if not route or len(route) < 2:
             await self.send(text_data=json.dumps({
                 'type': 'error',
-                'message': 'No simulation route available'
+                'message': 'No simulation route found.'
             }))
             return
         
-        # Interpolate between route points
         current_index = 0
-        progress = 0.0  # Progress between current and next point (0.0 to 1.0)
-        points_per_segment = 10  # Number of interpolated points between route points
+        progress = 0.0
         
         while True:
-            # Check if streaming is still enabled
-            await asyncio.sleep(0.1)  # Small delay to prevent tight loop
-            vehicle = await database_sync_to_async(Vehicle.objects.get)(id=self.vehicle_id)
-            if not vehicle.is_streaming:
+            # تحديث بيانات السيارة لفحص مفتاح البث
+            vehicle_obj = await database_sync_to_async(Vehicle.objects.get)(id=self.vehicle_id)
+            
+            if not vehicle_obj.is_streaming:
                 await self.send(text_data=json.dumps({
                     'type': 'status',
-                    'message': 'Streaming paused',
+                    'message': 'Simulation Paused',
                     'streaming': False
                 }))
-                # Wait until streaming resumes
-                while not vehicle.is_streaming:
-                    await asyncio.sleep(1)
-                    vehicle = await database_sync_to_async(Vehicle.objects.get)(id=self.vehicle_id)
-                await self.send(text_data=json.dumps({
-                    'type': 'status',
-                    'message': 'Streaming resumed',
-                    'streaming': True
-                }))
-            
-            # Calculate current position
+                await asyncio.sleep(5)
+                continue
+
+            # التحقق من استمرار صلاحية الوقت (لغير الآدمن)
+            if self.user.role != 'ADMIN':
+                is_valid = await self.get_and_activate_plan()
+                if not is_valid:
+                    await self.send(text_data=json.dumps({
+                        'type': 'status',
+                        'message': 'Plan expired',
+                        'streaming': False
+                    }))
+                    await self.close(code=4003)
+                    break
+
+            # حساب الموقع (بقية المنطق الخاص بك صحيحة)
             start_point = route[current_index]
             end_point = route[(current_index + 1) % len(route)]
             
-            # Interpolate
             lat = start_point[0] + (end_point[0] - start_point[0]) * progress
             lng = start_point[1] + (end_point[1] - start_point[1]) * progress
             
-            # Calculate speed and heading
-            if progress > 0:
-                prev_lat = start_point[0] + (end_point[0] - start_point[0]) * max(0, progress - 0.1)
-                prev_lng = start_point[1] + (end_point[1] - start_point[1]) * max(0, progress - 0.1)
-                
-                # Calculate distance (simplified)
-                import math
-                lat_diff = lat - prev_lat
-                lng_diff = lng - prev_lng
-                distance = math.sqrt(lat_diff**2 + lng_diff**2) * 111000  # Approximate meters
-                speed = distance / 1.5  # m/s (assuming 1.5s interval)
-                
-                # Calculate heading (degrees from north)
-                heading = math.degrees(math.atan2(lng_diff, lat_diff))
-                if heading < 0:
-                    heading += 360
-            else:
-                speed = 0.0
-                heading = 0.0
-            
-            # Create location data
             location_data = {
                 'type': 'location',
                 'vehicle_id': self.vehicle_id,
                 'lat': round(lat, 6),
                 'lng': round(lng, 6),
-                'speed': round(speed, 2),
-                'heading': round(heading, 2),
-                'recorded_at': timezone.now().isoformat(),
-                'source': 'SIMULATED'
+                'speed': round(45.0 + random.uniform(-5, 5), 2),
+                'recorded_at': timezone.now().isoformat()
             }
             
-            # Send to WebSocket
             await self.send(text_data=json.dumps(location_data))
+            await self.save_location(lat, lng)
             
-            # Save to database
-            await self.save_location(lat, lng, speed, heading)
-            
-            # Update progress
-            progress += 1.0 / points_per_segment
+            progress += 0.1
             if progress >= 1.0:
                 progress = 0.0
                 current_index = (current_index + 1) % len(route)
             
-            # Wait 1-2 seconds (randomized)
-            import random
-            await asyncio.sleep(random.uniform(1.0, 2.0))
-    
+            await asyncio.sleep(2)
+
     @database_sync_to_async
-    def save_location(self, lat, lng, speed, heading):
-        """Save location to database."""
+    def save_location(self, lat, lng):
         VehicleLocation.objects.create(
             vehicle=self.vehicle,
             lat=lat,
             lng=lng,
-            speed=speed,
-            heading=heading,
+            speed=45.0,
             recorded_at=timezone.now(),
-            source=VehicleLocation.Source.SIMULATED
+            source='SIMULATED'
         )
-

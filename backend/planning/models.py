@@ -32,6 +32,14 @@ class Plan(models.Model):
 
     vehicle = models.ForeignKey(Vehicle, on_delete=models.CASCADE, related_name='plans')
     personnel = models.ForeignKey(Personnel, on_delete=models.CASCADE, related_name='plans')
+    # إضافة حقل المستخدم الذي أنشأ الخطة
+    created_by = models.ForeignKey(
+        User, 
+        on_delete=models.CASCADE, 
+        related_name='created_plans',
+        null=True, 
+        blank=True
+    )
     start_at = models.DateTimeField()
     end_at = models.DateTimeField()
     description = models.TextField(blank=True)
